@@ -3,11 +3,20 @@ package org.polytech.spring.patient;
 import jakarta.annotation.PostConstruct;
 import jakarta.annotation.PreDestroy;
 
+import org.springframework.stereotype.Service;
+
 /**
- * Logique métier uniquement.
- * La dépendance vers le stockage est déclarée dans la signature du constructeur :
- * elle est visible, obligatoire, et l'attribut peut être final.
+ * @Service : stéréotype des classes portant les règles métier.
+ *
+ * Depuis Spring 4.3, @Autowired est facultative sur le constructeur lorsqu'il
+ * n'y en a qu'un seul : Spring l'utilise automatiquement.
+ *
+ * Étape 6 de l'exercice — lever l'ambiguïté avec @Qualifier plutôt qu'avec
+ * @Primary, en nommant le bean voulu au point d'injection :
+ *
+ *   public PatientService(@Qualifier("patientSerialization") PatientStore store) {
  */
+@Service
 public class PatientService {
 
     private final PatientStore store;
@@ -24,7 +33,6 @@ public class PatientService {
         store.save(patient);
     }
 
-    /** Étape 6 de l'exercice : vérifier qu'un PatientStore a bien été injecté. */
     @PostConstruct
     public void init() {
         System.out.println("PatientService   - @PostConstruct : store injecté = "

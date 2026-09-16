@@ -1,19 +1,16 @@
-# polytech-spring — branche `02-ioc-spring`
+# polytech-spring — branche `03-composants`
 
-Code de référence de l'atelier **« À vos claviers — Conteneur, cycle de vie et portées »**
-(Java / Spring, partie 1/2).
+Code de référence de l'atelier **« À vos claviers — Composants, ambiguïté et configuration
+externalisée »** (Java / Spring, partie 1/2).
 
-## Contenu de la branche
+## Ce qui change par rapport à `02-ioc-spring`
 
-| Fichier | Rôle |
+| Avant | Après |
 |---|---|
-| `app/build.gradle` | le *build.gradle de référence* du cours, avec `spring-context` et `jakarta.annotation-api` |
-| `patient/PatientStore` | le contrat de persistance |
-| `patient/PatientDataBase` | l'implémentation, avec `@PostConstruct` / `@PreDestroy` |
-| `patient/PatientService` | la logique métier, dépendance injectée par le **constructeur** |
-| `patient/Consultation` | le bean déclaré en scope `prototype` |
-| `AppConfig` | la classe `@Configuration` qui déclare les beans |
-| `App` | le `main`, contexte ouvert en try-with-resources |
+| `AppConfig` déclare chaque bean avec `@Bean` | `AppConfig` active `@ComponentScan` et ne déclare plus rien |
+| classes ordinaires | `@Repository` sur les stores, `@Service` sur le métier, `@Component` sur `Consultation` |
+| une seule implémentation de `PatientStore` | deux : `PatientDataBase` et `PatientSerialization` |
+| — | `@Primary` pour lever l'ambiguïté, `@Value` + `application.properties` pour la configuration |
 
 ## Lancer
 
@@ -21,20 +18,23 @@ Code de référence de l'atelier **« À vos claviers — Conteneur, cycle de vi
 ./gradlew run
 ```
 
-## Points à observer
+## Les trois manipulations de l'atelier
 
-1. **L'ordre du cycle de vie.** Les `@PostConstruct` sont appelées après l'injection des
-   dépendances, dans l'ordre de construction du graphe : `PatientDataBase` d'abord, aucun
-   bean n'étant requis pour le construire, `PatientService` ensuite. Les `@PreDestroy` sont
-   appelées à la fermeture du contexte, dans l'ordre inverse.
-2. **Singleton et prototype.** `ObjectUtils.identityToString` affiche l'identité de l'objet :
-   deux appels à `getBean(PatientStore.class)` renvoient la **même** référence, deux appels à
-   `getBean(Consultation.class)` en renvoient **deux différentes**.
-3. **Question 9 — `@PreDestroy` sur un prototype ?** Non, elle n'est jamais appelée. Spring
-   ne conserve aucune référence sur un bean prototype après l'avoir livré : il ne peut pas
-   déterminer le moment où l'objet cesse d'être utilisé, donc pas davantage le détruire.
-   `@PostConstruct` est en revanche appelée à chaque création.
+1. **Le scan.** Supprimer les `@Bean`, ce qui est déjà fait ici, et vérifier que
+   l'application fonctionne toujours : Spring détecte les beans à partir des annotations.
+2. **L'ambiguïté.** Commenter le `@Primary` de `PatientDataBase` et relancer. Le démarrage
+   échoue sur `NoUniqueBeanDefinitionException: expected single matching bean but found 2:
+   patientDataBase, patientSerialization`.
+   Deux moyens de lever l'ambiguïté :
+   - `@Primary` sur l'implémentation par défaut ;
+   - `@Qualifier("patientSerialization")` au point d'injection dans `PatientService`, pour
+     l'exception. Le code correspondant est en commentaire dans `PatientService`.
+3. **La configuration externalisée.** `@PropertySource` désigne le fichier,
+   `@Value("${patient.store.url}")` injecte la propriété. La valeur est affichée au démarrage
+   par le `@PostConstruct` de `PatientDataBase`.
+   Avec Spring Boot, au chapitre suivant, `application.properties` est chargé
+   automatiquement et `@PropertySource` devient inutile.
 
 ## Suite
 
-Branche `03-composants` : `@ComponentScan`, stéréotypes, `@Primary` / `@Qualifier`, `@Value`.
+Branche `04-spring-boot` : JAR autonome, Tomcat embarqué, premier `@RestController`.

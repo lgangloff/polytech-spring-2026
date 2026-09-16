@@ -21,6 +21,10 @@ public class App {
             service.savePatient(new Patient("Ada", "Lovelace", "ada.lovelace@polytech.fr"));
 
             System.out.println();
+            System.out.println("--- implémentation de PatientStore retenue (@Primary) ---");
+            System.out.println(ctx.getBean(PatientStore.class).getClass().getSimpleName());
+
+            System.out.println();
             System.out.println("--- scope singleton : deux appels à getBean(PatientStore.class) ---");
             System.out.println(ObjectUtils.identityToString(ctx.getBean(PatientStore.class)));
             System.out.println(ObjectUtils.identityToString(ctx.getBean(PatientStore.class)));

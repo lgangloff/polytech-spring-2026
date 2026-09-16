@@ -3,15 +3,18 @@ package org.polytech.spring.patient;
 import jakarta.annotation.PostConstruct;
 import jakarta.annotation.PreDestroy;
 
+import org.springframework.context.annotation.Scope;
+import org.springframework.stereotype.Component;
+
 /**
- * Bean de scope « prototype » (étapes 8 et 9 de l'exercice).
+ * Les annotations applicables à une méthode @Bean restent applicables à un
+ * composant : @Scope, @Primary, @Lazy.
  *
- * Une nouvelle instance est créée à chaque demande adressée au conteneur.
- * Spring ne conserve aucune référence sur un bean prototype une fois livré :
- * il ne peut donc pas déterminer le moment de sa destruction, et @PreDestroy
- * n'est jamais appelée. C'est la réponse à la question 9. @PostConstruct, en
- * revanche, est appelée à chaque création.
+ * Sur un bean prototype, @PostConstruct est appelée à chaque création,
+ * @PreDestroy ne l'est jamais.
  */
+@Component
+@Scope("prototype")
 public class Consultation {
 
     @PostConstruct
