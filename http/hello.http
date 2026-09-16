@@ -1,0 +1,13 @@
+### Étape 4 — une chaîne de caractères
+GET http://localhost:8080/hello
+
+### Étape 5 — un objet Java, sérialisé en JSON par Jackson
+GET http://localhost:8080/hello/patient
+Accept: application/json
+
+### Étape 6 — le client demande du XML : 406 Not Acceptable
+# L'application ne sait produire que du JSON, aucun convertisseur XML n'étant
+# présent dans le classpath. Spring croise ce que le client accepte avec ce que
+# l'application sait produire ; sans format commun, la réponse est 406.
+GET http://localhost:8080/hello/patient
+Accept: application/xml

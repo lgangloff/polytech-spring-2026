@@ -1,40 +1,69 @@
-# polytech-spring — branche `03-composants`
+# polytech-spring — branche `04-spring-boot`
 
-Code de référence de l'atelier **« À vos claviers — Composants, ambiguïté et configuration
-externalisée »** (Java / Spring, partie 1/2).
+Code de référence de l'atelier **« À vos claviers — Premier démarrage Spring Boot »**
+(Java / Spring, partie 1/2).
 
-## Ce qui change par rapport à `02-ioc-spring`
+## Ce qui change par rapport à `03-composants`
 
 | Avant | Après |
 |---|---|
-| `AppConfig` déclare chaque bean avec `@Bean` | `AppConfig` active `@ComponentScan` et ne déclare plus rien |
-| classes ordinaires | `@Repository` sur les stores, `@Service` sur le métier, `@Component` sur `Consultation` |
-| une seule implémentation de `PatientStore` | deux : `PatientDataBase` et `PatientSerialization` |
-| — | `@Primary` pour lever l'ambiguïté, `@Value` + `application.properties` pour la configuration |
+| `spring-context` | `spring-boot-starter-webmvc`, sans numéro de version |
+| `AppConfig` avec `@ComponentScan` et `@PropertySource` | supprimée : `@SpringBootApplication` remplit les deux rôles |
+| `main` qui ouvre un `AnnotationConfigApplicationContext` | `SpringApplication.run(App.class, args)` |
+| application console | JAR autonome, Tomcat embarqué sur le port 8080 |
+
+`application.properties` est désormais chargé **automatiquement** : `@PropertySource` n'est
+plus nécessaire.
+
+> **Le starter a changé de nom en Spring Boot 4.** `spring-boot-starter-web` est devenu
+> `spring-boot-starter-webmvc`. L'ancien nom subsiste comme alias déprécié, ce qui explique
+> que les deux circulent : les ressources antérieures à fin 2025 — tutoriels, réponses
+> Stack Overflow, anciens projets — utilisent `-web`.
+
 
 ## Lancer
 
 ```bash
-./gradlew run
+./gradlew bootRun
 ```
 
-## Les trois manipulations de l'atelier
+Dans les traces de démarrage, repérer :
 
-1. **Le scan.** Supprimer les `@Bean`, ce qui est déjà fait ici, et vérifier que
-   l'application fonctionne toujours : Spring détecte les beans à partir des annotations.
-2. **L'ambiguïté.** Commenter le `@Primary` de `PatientDataBase` et relancer. Le démarrage
-   échoue sur `NoUniqueBeanDefinitionException: expected single matching bean but found 2:
-   patientDataBase, patientSerialization`.
-   Deux moyens de lever l'ambiguïté :
-   - `@Primary` sur l'implémentation par défaut ;
-   - `@Qualifier("patientSerialization")` au point d'injection dans `PatientService`, pour
-     l'exception. Le code correspondant est en commentaire dans `PatientService`.
-3. **La configuration externalisée.** `@PropertySource` désigne le fichier,
-   `@Value("${patient.store.url}")` injecte la propriété. La valeur est affichée au démarrage
-   par le `@PostConstruct` de `PatientDataBase`.
-   Avec Spring Boot, au chapitre suivant, `application.properties` est chargé
-   automatiquement et `@PropertySource` devient inutile.
+```
+Tomcat initialized with port 8080 (http)
+Root WebApplicationContext: initialization completed in ... ms
+Tomcat started on port 8080 (http) with context path '/'
+Started App in 1.4 seconds
+```
+
+## Les requêtes
+
+`http/hello.http` contient les trois appels de l'exercice. Ouvrir le fichier dans VSCode et
+cliquer sur *Send Request* au-dessus de chaque requête (extension REST Client).
+
+| Requête | Résultat attendu |
+|---|---|
+| `GET /hello` | `200` — `Hello Polytech`, `Content-Type: text/plain` |
+| `GET /hello/patient` avec `Accept: application/json` | `200` — l'objet sérialisé en JSON par Jackson |
+| `GET /hello/patient` avec `Accept: application/xml` | **`406 Not Acceptable`** |
+
+### Étape 6 — origine du 406
+
+Il s'agit de la **négociation de contenu**. Spring croise ce que le client accepte
+(`Accept`) avec ce que l'application sait produire. L'application ne produit que du JSON,
+aucun convertisseur XML n'étant présent dans le classpath. Sans format commun, la réponse
+est `406`.
+
+Obtenir du XML demande d'ajouter le module Jackson correspondant, et rien d'autre : le code
+Java reste inchangé.
+
+```gradle
+implementation 'tools.jackson.dataformat:jackson-dataformat-xml'
+```
+
+Le même endpoint répond alors en XML ou en JSON selon l'en-tête `Accept`, ce qui correspond
+à la slide « Négociation — la même requête, deux résultats ».
 
 ## Suite
 
-Branche `04-spring-boot` : JAR autonome, Tomcat embarqué, premier `@RestController`.
+Branche `05-jpa-entites` : entités JPA, relations, PostgreSQL.

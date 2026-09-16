@@ -25,10 +25,9 @@ repositories {
 }
 
 dependencies {
-    // le conteneur IoC : seule dépendance requise pour ce chapitre
-    implementation 'org.springframework:spring-context'
-    // @PostConstruct / @PreDestroy
-    implementation 'jakarta.annotation:jakarta.annotation-api'
+    // spring-boot-starter-webmvc apporte Spring MVC, Jackson et un Tomcat embarqué.
+    // Aucun numéro de version : le BOM Spring Boot les fixe.
+    implementation 'org.springframework.boot:spring-boot-starter-webmvc'
 
     testImplementation libs.junit.jupiter
     testRuntimeOnly 'org.junit.platform:junit-platform-launcher'

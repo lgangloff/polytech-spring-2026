@@ -1,41 +1,21 @@
 package org.polytech.spring;
 
-import org.polytech.spring.patient.Consultation;
-import org.polytech.spring.patient.Patient;
-import org.polytech.spring.patient.PatientService;
-import org.polytech.spring.patient.PatientStore;
-import org.springframework.context.annotation.AnnotationConfigApplicationContext;
-import org.springframework.util.ObjectUtils;
+import org.springframework.boot.SpringApplication;
+import org.springframework.boot.autoconfigure.SpringBootApplication;
 
+/**
+ * @SpringBootApplication combine trois annotations :
+ *   - @Configuration           : cette classe est une classe de configuration ;
+ *   - @ComponentScan           : les beans sont cherchés dans ce package et ses sous-packages ;
+ *   - @EnableAutoConfiguration : Boot configure ce qu'il détecte dans le classpath.
+ *
+ * La classe doit donc être placée à la racine du package, le scan en dépend.
+ * AppConfig devient inutile.
+ */
+@SpringBootApplication
 public class App {
 
     public static void main(String[] args) {
-
-        // try-with-resources : le contexte est fermé en sortie de bloc,
-        // ce qui déclenche les @PreDestroy des beans singleton.
-        try (var ctx = new AnnotationConfigApplicationContext(AppConfig.class)) {
-
-            // getBean() renvoie une instance dont les dépendances
-            // ont déjà été résolues par le conteneur.
-            PatientService service = ctx.getBean(PatientService.class);
-            service.savePatient(new Patient("Ada", "Lovelace", "ada.lovelace@polytech.fr"));
-
-            System.out.println();
-            System.out.println("--- implémentation de PatientStore retenue (@Primary) ---");
-            System.out.println(ctx.getBean(PatientStore.class).getClass().getSimpleName());
-
-            System.out.println();
-            System.out.println("--- scope singleton : deux appels à getBean(PatientStore.class) ---");
-            System.out.println(ObjectUtils.identityToString(ctx.getBean(PatientStore.class)));
-            System.out.println(ObjectUtils.identityToString(ctx.getBean(PatientStore.class)));
-
-            System.out.println();
-            System.out.println("--- scope prototype : deux appels à getBean(Consultation.class) ---");
-            System.out.println(ObjectUtils.identityToString(ctx.getBean(Consultation.class)));
-            System.out.println(ObjectUtils.identityToString(ctx.getBean(Consultation.class)));
-
-            System.out.println();
-            System.out.println("--- fermeture du contexte ---");
-        }
+        SpringApplication.run(App.class, args);
     }
 }
