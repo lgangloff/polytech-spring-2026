@@ -1,0 +1,25 @@
+spring:
+  datasource:
+    url: jdbc:postgresql://localhost:5432/covid-db
+    username: postgres
+    password: password
+  jpa:
+    hibernate:
+      # create-drop : le schéma est recréé à chaque démarrage. Adapté au
+      # développement. En production, le schéma est géré par un outil de
+      # migration versionné — Flyway ou Liquibase — et non par ddl-auto.
+      ddl-auto: create-drop
+    show-sql: true
+    properties:
+      hibernate:
+        format_sql: true
+    # requis : sans cette propriété, data.sql s'exécute avant la création des tables
+    defer-datasource-initialization: true
+  sql:
+    init:
+      mode: always
+
+# propriété injectée par @Value dans PatientDataBase
+patient:
+  store:
+    url: jdbc:postgresql://localhost:5432/covid-db
