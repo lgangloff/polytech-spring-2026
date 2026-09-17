@@ -1,17 +1,16 @@
-# polytech-spring — branche `06-spring-data`
+# polytech-spring — branche `07-dto`
 
-Code de référence de l'atelier **« Du repository au endpoint »** (Java / Spring, partie 2/2).
+Code de référence de l'atelier **« Poser la frontière DTO »** (Java / Spring, partie 2/2).
+C'est l'état d'arrivée du cours.
 
-## Ce qui change par rapport à `05-jpa-entites`
+## Ce qui change par rapport à `06-spring-data`
 
 | Avant | Après |
 |---|---|
-| `PatientStore`, `PatientDataBase`, `PatientSerialization` — le stockage écrit à la main | **supprimés** |
-| — | `repository/PatientRepository extends JpaRepository<Patient, Long>` : une interface, aucune implémentation |
-| — | une requête par convention de nommage : `findByNomContainingIgnoreCase` |
-| — | une requête `@Query` avec `JOIN FETCH` : `findByIdWithDocteur`, et `findByIdWithPatients` côté docteur |
-| — | `rest/PatientController`, qui expose l'**entité** ; les conséquences sont traitées au chapitre suivant |
-| — | `rest/ApiExceptionHandler` : les erreurs au format `ProblemDetail` (RFC 9457) |
+| `PatientController` renvoie des entités, et échoue | il ne manipule plus que des **DTO** |
+| — | `dto/PatientDto`, `dto/PatientCreationDto`, `dto/PatientDetailDto`, `dto/PatientMapper` |
+| — | `rest/PatientEntityDemoController` : l'ancien contrôleur, conservé sous profil `demo` |
+| — | `config/CorsConfig` : la politique CORS, globale et externalisée |
 
 ## Lancer
 
@@ -19,111 +18,86 @@ Code de référence de l'atelier **« Du repository au endpoint »** (Java / Spr
 ./gradlew bootRun
 ```
 
-## Étape 3 — l'échec de GET /patients
+Les requêtes sont dans `http/patients.http`, à exécuter avec l'extension REST Client.
+
+## 1. Reproduire les deux échecs
+
+L'ancien contrôleur est conservé sous profil `demo` :
 
 ```bash
-curl -i http://localhost:8080/patients
+./gradlew bootRun --args='--spring.profiles.active=demo'
+curl -i http://localhost:8080/demo/patients
 ```
 
-**`500` avec un corps `application/problem+json`.** Le `-i` est nécessaire : l'échec se lit
-dans la **réponse HTTP**, non dans la console.
+**Échec obtenu : `LazyInitializationException`.** La transaction est fermée quand le
+contrôleur rend la main ; Jackson tente de sérialiser une relation `LAZY` jamais chargée.
 
-**`LazyInitializationException: could not initialize proxy [Docteur#1] - no Session`.**
+Le `-i` est nécessaire : l'échec se lit dans la **réponse HTTP**, un `500` en
+`application/problem+json`. Côté console, `ApiExceptionHandler` a *résolu* l'exception —
+`HttpMessageNotWritableException` fait partie de ce que `ResponseEntityExceptionHandler`
+traite par défaut — et Spring ne trace une exception résolue qu'en `DEBUG`. C'est le rôle de
+`spring.mvc.log-resolved-exception: true`, héritée de la branche précédente : elle fait
+passer ces exceptions en `WARN`. Sans elle, rien n'apparaît.
 
-La transaction est fermée quand le contrôleur rend la main ; Jackson tente ensuite de
-sérialiser le médecin traitant, une relation `LAZY` jamais chargée.
+**Pour obtenir le second échec**, passer `Patient.medecinTraitant` en
+`fetch = FetchType.EAGER` : `StackOverflowError`, par récursion infinie sur la relation
+bidirectionnelle.
 
-> **Une réponse `200 []`** indique que l'échec ne peut pas se produire : la table est vide,
-> il n'y a aucun proxy à sérialiser. Les traces montrent alors un `select … from patient` et
-> rien d'autre, sans second select sur `docteur`. Vérifier que `data.sql` s'est exécuté :
-> `spring.sql.init.mode: always` **et** `defer-datasource-initialization: true` sont tous
-> deux requis, le second parce que sans lui le script s'exécute avant la création des tables.
-> En base, `select count(*) from patient;` doit renvoyer 2.
+## 2. Les solutions apparentes
 
-### Pourquoi la console reste silencieuse
+| Réflexe | Ce que cela règle | Ce que cela coûte |
+|---|---|---|
+| `@JsonIgnore` | la récursion | le format de sortie de l'API est décidé par des annotations posées sur le modèle de base : le contrat d'API devient un effet de bord du schéma |
+| passer en `EAGER` | la `LazyInitializationException` | chaque lecture d'un patient charge son docteur, sa patientèle et leurs adresses : une requête en devient dix |
+| `open-in-view: true` | la `LazyInitializationException` | les requêtes SQL sont déclenchées par le sérialiseur, hors de tout contrôle — la moins bonne des trois |
 
-Aucune stack trace n'apparaît au moment de l'échec.
+## 3. La frontière
 
-La stack trace habituelle n'est pas écrite par Spring mais par Tomcat, lorsque l'exception
-lui remonte. Ici, elle ne remonte pas :
+Une entité JPA modélise un schéma relationnel. Un DTO modélise un contrat d'API. Ce ne sont
+pas les mêmes objets, et ils ne changent pas pour les mêmes raisons.
 
-1. Jackson échoue sur le proxy et encapsule la `LazyInitializationException` dans une
-   `JsonMappingException` ;
-2. le convertisseur de message la retransforme en `HttpMessageNotWritableException` ;
-3. `ApiExceptionHandler extends ResponseEntityExceptionHandler`, et
-   `HttpMessageNotWritableException` fait partie des exceptions que cette classe traite
-   **par défaut**. L'exception est donc *résolue* : un `500` est renvoyé au client, et rien
-   ne remonte au conteneur.
+| Couche | Ce qu'elle manipule |
+|---|---|
+| `PatientController` | **uniquement** des DTO — la classe `Patient` n'apparaît dans aucun de ses imports |
+| `PatientService` | des DTO côté contrôleur, des entités côté persistance : la conversion a lieu ici |
+| `PatientRepository` | **uniquement** des entités — les DTO n'y sont pas référencés |
 
-Spring ne trace une exception résolue qu'en **DEBUG**. Le niveau par défaut de Spring Boot
-étant INFO, la console reste silencieuse. D'où la propriété ajoutée dans `application.yaml` :
+Après la bascule, le JSON est plat et les traces SQL ne montrent plus qu'une seule requête.
 
-```yaml
-spring:
-  mvc:
-    log-resolved-exception: true
-```
+La dissymétrie entrée / sortie est volontaire : `PatientCreationDto` n'a **pas**
+d'identifiant, celui-ci étant généré par le serveur ; `PatientDto` le renvoie. Et
+`PatientDetailDto` ajoute le nom du médecin traitant : deux vues du même objet, ce qu'une
+classe unique ne permet pas.
 
-Elle branche un *warn logger* sur les `HandlerExceptionResolver` : toute exception résolue
-produit désormais une ligne **WARN** dans la console.
-
-```
-WARN  o.s.w.s.m.m.a.ExceptionHandlerExceptionResolver :
-  Resolved [org.springframework.http.converter.HttpMessageNotWritableException:
-  Could not write JSON: could not initialize proxy [Docteur#1] - no Session]
-```
-
-Une ligne, et non une stack trace : `logException` passe le message sans l'exception. La
-chaîne des causes figure dans le message.
-
-Le même effet, sans modifier le fichier, le temps d'un lancement :
-
-```bash
-./gradlew bootRun --args='--spring.mvc.log-resolved-exception=true'
-```
-
-Sans cette propriété, l'échec reste invisible côté serveur, ce qui illustre le coût d'un
-`@RestControllerAdvice` trop large.
-
-> **Niveau de log : la catégorie à viser.** Cibler
-> `logging.level.org.springframework.web.servlet.handler.AbstractHandlerExceptionResolver`
-> ne produit **aucun effet** : la classe déclare `LogFactory.getLog(getClass())`, donc la
-> catégorie réelle est celle de la classe concrète — ici
-> `…mvc.method.annotation.ExceptionHandlerExceptionResolver`.
-
-Corriger l'échec en passant la relation en `EAGER` produit l'autre panne :
-`StackOverflowError`. Le patient référence son docteur, qui référence sa patientèle, qui
-contient le patient.
-
-**Ces deux échecs ne doivent pas être corrigés ici** : ils font l'objet du chapitre suivant.
-Ils ne résultent pas d'une erreur, mais de deux décisions de conception correctes — relation
-bidirectionnelle et chargement paresseux — appliquées à un objet qui n'est pas destiné à cet
-usage.
-
-Ce qui fonctionne à ce stade :
+## Les endpoints
 
 | Requête | Réponse |
 |---|---|
-| `POST /patients` | `201` + `Location` — un patient neuf n'a ni adresse ni docteur à sérialiser |
+| `GET /patients` | `200` — la liste, en `PatientDto` |
+| `GET /patients?nom=love` | `200` — la recherche par convention de nommage |
+| `GET /patients/1` | `200` — `PatientDetailDto`, patient **et** médecin traitant |
 | `GET /patients/9999` | `404` — `ProblemDetail` |
+| `POST /patients` | `201` + en-tête `Location` |
+| `PUT /patients/1/medecin/1` | `200` — affecte le médecin traitant |
 | `DELETE /patients/2` | `204` |
 
-## Étape 6 — nombre de requêtes SQL
+## CORS
 
-`show-sql: true` est actif : les requêtes apparaissent dans la console.
+`config/CorsConfig` autorise `http://localhost:4200`, l'origine du front Angular de la séance
+suivante. La liste est une propriété (`app.cors.allowed-origins`), et non une constante.
 
-- **Sans `JOIN FETCH`** (remplacer `findByIdWithDocteur(id)` par `findById(id)`) : une
-  requête pour le patient, puis une **seconde** dès la lecture de son médecin traitant. Sur
-  une liste de N patients, cela fait N+1 requêtes.
-- **Avec `JOIN FETCH`** : **une seule** requête, avec la jointure.
+Un blocage CORS n'est **pas** une panne de l'API : celle-ci a répondu correctement. C'est le
+navigateur qui refuse de remettre la réponse au code JavaScript. Depuis REST Client ou cURL,
+la même requête aboutit, aucun navigateur n'étant impliqué.
 
-Déclarer les relations en `LAZY` puis charger explicitement ce qui est nécessaire déplace la
-décision : le chargement n'est plus une propriété du modèle, il est décidé requête par
-requête.
+## Les branches du cours
 
-`DocteurRepository.findByIdWithPatients` applique le même mécanisme à une **collection**,
-cas où le coût du N+1 est le plus élevé.
-
-## Suite
-
-Branche `07-dto` : pourquoi une entité JPA ne doit pas franchir le contrôleur.
+| Branche | Atelier |
+|---|---|
+| `main` | point de départ : le problème du couplage, avant Spring |
+| `02-ioc-spring` | conteneur IoC, cycle de vie et portées |
+| `03-composants` | `@ComponentScan`, stéréotypes, `@Primary` / `@Qualifier`, `@Value` |
+| `04-spring-boot` | JAR autonome, Tomcat embarqué, premier `@RestController` |
+| `05-jpa-entites` | entités JPA, relations, PostgreSQL |
+| `06-spring-data` | repositories dérivés, `@Query` / `JOIN FETCH` |
+| `07-dto` | la frontière DTO, et CORS |

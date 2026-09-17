@@ -14,7 +14,7 @@ spring:
     # Laisser open-in-view actif, valeur par défaut de Spring Boot, supprimerait
     # la LazyInitializationException, au prix de requêtes SQL déclenchées par le
     # sérialiseur, hors de tout contrôle. C'est la moins bonne des trois
-    # solutions apparentes examinées au chapitre suivant.
+    # solutions apparentes examinées dans ce chapitre.
     open-in-view: false
     properties:
       hibernate:
@@ -25,18 +25,14 @@ spring:
     init:
       mode: always
   mvc:
-    # Pourquoi la console reste silencieuse quand GET /patients échoue.
-    #
-    # Jackson ne parvient pas à sérialiser le proxy LAZY du médecin traitant :
-    # la LazyInitializationException est encapsulée dans une
-    # HttpMessageNotWritableException par le convertisseur de message. Cette
-    # exception fait partie de celles que ResponseEntityExceptionHandler traite
-    # par défaut, et ApiExceptionHandler en hérite. L'exception est donc
-    # résolue : elle ne remonte pas jusqu'au conteneur, seul à écrire une stack
-    # trace en ERROR.
-    #
-    # Spring ne trace une exception résolue qu'en DEBUG. Cette propriété la fait
-    # passer en WARN, sous la forme d'une ligne « Resolved [...] » portant la
-    # chaîne des causes. Sans elle, le seul signe de l'échec est le 500
-    # application/problem+json renvoyé au client.
+    # Héritée de la branche 06 : sans elle, une exception résolue par un
+    # @RestControllerAdvice ne laisse aucune trace au-dessus de DEBUG.
+    # Toujours utile ici, le contrôleur de démonstration actif sous profil
+    # « demo » reproduisant la même panne sur /demo/patients.
     log-resolved-exception: true
+
+# Origines autorisées à appeler l'API depuis un navigateur.
+# Le front Angular de la séance suivante écoute sur le port 4200.
+app:
+  cors:
+    allowed-origins: http://localhost:4200
