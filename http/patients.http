@@ -1,0 +1,54 @@
+### Liste des patients : uniquement des DTO, un JSON plat, une seule requête SQL
+GET http://localhost:8080/patients
+Accept: application/json
+
+### Recherche par convention de nommage : findByNomContainingIgnoreCase
+GET http://localhost:8080/patients?nom=love
+Accept: application/json
+
+### Un patient et son medecin traitant : une seule requete SQL grace au JOIN FETCH
+GET http://localhost:8080/patients/1
+Accept: application/json
+
+### Identifiant inexistant -> 404 au format ProblemDetail
+GET http://localhost:8080/patients/9999
+Accept: application/json
+
+### Identifiant non numérique -> 404 (le chemin exige des chiffres : {id:\d+})
+GET http://localhost:8080/patients/bob
+Accept: application/json
+
+### Création -> 201 Created + en-tête Location
+POST http://localhost:8080/patients
+Content-Type: application/json
+
+{
+  "prenom": "Alan",
+  "nom": "Turing",
+  "email": "alan.turing@polytech.fr",
+  "dateNaissance": "1912-06-23"
+}
+
+### Création invalide, email absent -> 400 au format ProblemDetail
+POST http://localhost:8080/patients
+Content-Type: application/json
+
+{
+  "prenom": "Sans",
+  "nom": "Email"
+}
+
+### Affectation d'un médecin traitant -> 200, le DTO à jour
+PUT http://localhost:8080/patients/1/medecin/1
+
+### Docteur inconnu -> 404 au format ProblemDetail
+PUT http://localhost:8080/patients/1/medecin/9999
+
+### Suppression -> 204 No Content
+DELETE http://localhost:8080/patients/2
+
+### Démonstration du chapitre précédent : l'entité exposée directement
+# Nécessite le profil demo :
+#   ./gradlew bootRun --args='--spring.profiles.active=demo'
+GET http://localhost:8080/demo/patients
+Accept: application/json
